@@ -1,0 +1,7 @@
+{
+  "name": "gridsync-oracle-experiment",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": { "start": "node server.cjs", "test:flows": "node tests/flows.cjs", "test:overlap": "node tests/overlap.cjs" },
+  "dependencies": { "express": "5.1.0" }
+}
