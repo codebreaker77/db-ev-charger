@@ -3,13 +3,41 @@ const { execFile } = require('node:child_process');
 const crypto = require('node:crypto');
 const path = require('node:path');
 const fs = require('node:fs');
+const { AsyncLocalStorage } = require('node:async_hooks');
+const { logSql } = require('./sql-logger');
+const requestContext = new AsyncLocalStorage();
+let requestSequence = 0;
 const app=express(), sessions=new Map();
+app.use((req,res,next)=>{
+ const id=++requestSequence,started=Date.now();
+ requestContext.run({id},()=>{
+  console.log(`\n[request #${id}] ${req.method} ${req.path}`);
+  res.on('finish',()=>console.log(`[request #${id}] ${res.statusCode} in ${Date.now()-started} ms`));
+  next();
+ });
+});
 app.use(express.json());
 app.use((req,res,next)=>{res.set('Cache-Control','no-store');next();});
 function role(req){const cookie=(req.headers.cookie||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('local_session='));return sessions.get(cookie?.slice(14));}
-function query(type,role,uid=role==='manager'?1:2){return new Promise((resolve,reject)=>execFile('java',['-Duser.timezone=UTC','-cp',cp,'OracleRead',type,role,String(uid)],{cwd:__dirname,timeout:20000},(e,out,err)=>{if(e)return reject(new Error(err||e.message));try{const rows=JSON.parse(out);for(const row of rows)for(const key of ['quote','snapshot','tariff_snapshot'])if(typeof row[key]==='string'){try{row[key]=JSON.parse(row[key])}catch{row[key]=null}}resolve(rows);}catch(e){reject(e);}}));}
+function query(type,role,uid=role==='manager'?1:2){
+ const started=Date.now(),context=requestContext.getStore();
+ return new Promise((resolve,reject)=>execFile('java',['-Duser.timezone=UTC','-cp',cp,'OracleRead',type,role,String(uid)],{cwd:__dirname,timeout:20000},(e,out,err)=>{
+  const marker=err.split(/\r?\n/).find(line=>line.startsWith('GRID_SQL '));
+  const sql=marker?marker.slice(9):null;
+  if(e){if(sql)logSql(context,sql,`failed after ${Date.now()-started} ms`);return reject(new Error(err.split(/\r?\n/).filter(x=>!x.startsWith('GRID_SQL ')).join('\n')||e.message));}
+  try{const rows=JSON.parse(out);for(const row of rows)for(const key of ['quote','snapshot','tariff_snapshot'])if(typeof row[key]==='string'){try{row[key]=JSON.parse(row[key])}catch{row[key]=null}}if(sql)logSql(context,sql,`${rows.length} row(s), ${Date.now()-started} ms`);resolve(rows);}catch(error){if(sql)logSql(context,sql,`invalid result, ${Date.now()-started} ms`);reject(error);}
+ }));
+}
 const cp=['build', process.env.ORACLE_JDBC_JAR || 'D:\\ORACLE\\app\\oracle\\product\\11.2.0\\server\\jdbc\\lib\\ojdbc6.jar'].join(path.delimiter);
-function write(sql,values){const enc=x=>x===null||x===undefined||x===''?'~':x==='!SEQ'?'!SEQ':Buffer.from(String(x)).toString('base64');return new Promise((resolve,reject)=>execFile('java',['-cp',cp,'OracleWrite',enc(sql),...values.map(enc)],{cwd:__dirname,timeout:20000},(e,out,err)=>{if(e){const msg=err||e.message;const match=msg.match(/ORA-20001: ([^\r\n]+)/);const error=new Error(match?match[1]:msg);if(match||msg.includes('ORA-00001'))error.status=409;return reject(error)}resolve(Number(out))}));}
+function write(sql,values){
+ const enc=x=>x===null||x===undefined||x===''?'~':x==='!SEQ'?'!SEQ':Buffer.from(String(x)).toString('base64');
+ const started=Date.now(),context=requestContext.getStore();
+ return new Promise((resolve,reject)=>execFile('java',['-cp',cp,'OracleWrite',enc(sql),...values.map(enc)],{cwd:__dirname,timeout:20000},(e,out,err)=>{
+  for(const line of err.split(/\r?\n/))if(line.startsWith('GRID_SQL '))logSql(context,line.slice(9),'sequence lookup');
+  if(e){logSql(context,sql,`failed after ${Date.now()-started} ms`);const msg=err.split(/\r?\n/).filter(x=>!x.startsWith('GRID_SQL ')).join('\n')||e.message;const match=msg.match(/ORA-20001: ([^\r\n]+)/);const error=new Error(match?match[1]:msg);if(match||msg.includes('ORA-00001'))error.status=409;return reject(error);}
+  const result=Number(out);logSql(context,sql,`${result>0?'inserted record':result<0?`${-result} row(s) affected`:'completed'}, ${Date.now()-started} ms`);resolve(result);
+ }));
+}
 const bad=(s)=>{const e=Error(s);e.status=400;throw e};
 const flow=require('./flows')({query,write,bad});
 let taskQueue=Promise.resolve();

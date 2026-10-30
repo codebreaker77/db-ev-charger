@@ -15,6 +15,7 @@ public class OracleRead {
    if(!manager){if(Arrays.asList("vehicles","reservations","reservation-checkouts","sessions").contains(type))sql+=" WHERE user_id="+uid;
     else if(type.equals("invoices"))sql+=" WHERE session_id IN (SELECT session_id FROM charging_session WHERE user_id="+uid+")";
     else if(type.equals("payments"))sql+=" WHERE invoice_id IN (SELECT i.invoice_id FROM invoice i JOIN charging_session s ON s.session_id=i.session_id WHERE s.user_id="+uid+")";}}
+  System.err.println("GRID_SQL " + sql);
   try(Connection c=DriverManager.getConnection(p.getProperty("url"),p.getProperty("user"),p.getProperty("password"));Statement st=c.createStatement();ResultSet rs=st.executeQuery(sql)){
    ResultSetMetaData md=rs.getMetaData();StringBuilder out=new StringBuilder("[");boolean first=true;
    while(rs.next()){if(!first)out.append(',');first=false;out.append('{');for(int i=1;i<=md.getColumnCount();i++){if(i>1)out.append(',');String k=md.getColumnLabel(i).toLowerCase(Locale.ROOT);Object v=rs.getObject(i);if(v!=null && (md.getColumnType(i)==Types.TIMESTAMP || md.getColumnType(i)==Types.DATE))v=rs.getTimestamp(i);out.append(quote(k)).append(':');

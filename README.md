@@ -101,6 +101,12 @@ npm start
 
 Use the actual path to your Oracle JDBC JAR if it differs. Keep this terminal open. The backend serves the frontend and API on `127.0.0.1:3199`.
 
+## Server and SQL logs
+
+Keep `npm start` running in your terminal. Each API request and its JDBC SQL appear with a matching request number, SQL formatting, execution time and row count (for reads). SQL bind placeholders remain `?`; passwords, submitted form values and fetched row contents are not printed. The Oracle sequence lookup and complete PL/SQL blocks are also shown. Statements are logged when the JDBC process completes, so concurrent fetches can appear in completion order. These are console logs, not a permanent Oracle audit log. Browser-only demo actions do not reach the backend and therefore do not produce these SQL logs.
+
+After modifying either Java source file, recompile both before restarting `npm start` as shown above.
+
 ## 4. Open the frontend
 
 Go to **http://127.0.0.1:3199/login**. Click **Use real account login** to select the local Oracle-backed API, then sign in:

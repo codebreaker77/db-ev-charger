@@ -1,0 +1,11 @@
+﻿'use strict';
+const assert=require('node:assert/strict');const {spawn,execFileSync}=require('node:child_process');const crypto=require('node:crypto');
+const server=spawn(process.execPath,['server.cjs'],{cwd:process.cwd(),env:{...process.env,PORT:'3201'},stdio:['ignore','pipe','pipe']});let logs='';server.stdout.on('data',v=>logs+=v);server.stderr.on('data',v=>logs+=v);const root='http://127.0.0.1:3201/api';let id;
+function cleanup(){if(!id)return;const enc=x=>Buffer.from(String(x)).toString('base64');execFileSync('java',['-cp',`build;${process.env.ORACLE_JDBC_JAR||'D:\\ORACLE\\app\\oracle\\product\\11.2.0\\server\\jdbc\\lib\\ojdbc6.jar'}`,'OracleWrite',enc('DELETE FROM vehicle WHERE vehicle_id=?'),enc(id)],{stdio:'ignore'});}
+(async()=>{try{
+ await new Promise((resolve,reject)=>{let t=setTimeout(()=>reject(Error('Server did not start')),10000);server.stdout.on('data',v=>{if(v.toString().includes('Oracle experiment:')){clearTimeout(t);resolve();}});server.on('exit',code=>reject(Error('Server exited '+code)));});
+ const password='LocalExperiment123!';let r=await fetch(root+'/auth/login',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:'customer@local.test',password})});assert.equal(r.status,200);let cookie=r.headers.get('set-cookie').split(';')[0];
+ r=await fetch(root+'/vehicles',{headers:{cookie}});assert.equal(r.status,200);await r.json();const plate='T'+crypto.randomBytes(5).toString('hex');r=await fetch(root+'/vehicles',{method:'POST',headers:{cookie,'content-type':'application/json'},body:JSON.stringify({license_plate:plate,make:'Test',model:'EV',connector_types:['CCS2'],battery_capacity_kwh:40,max_charge_rate_kw:20})});assert.equal(r.status,200);id=(await r.json()).vehicle_id;
+ await new Promise(resolve=>setTimeout(resolve,200));assert.match(logs,/\[request #\d+\] GET \/api\/vehicles/);assert.match(logs,/\[sql #\d+\].*row\(s\)/);assert.match(logs,/SELECT \*/);assert.match(logs,/INSERT INTO vehicle/i);assert.match(logs,/SELECT gridsync_seq\.nextval/i);assert.ok(!logs.includes(password));assert.ok(!logs.includes(plate));console.log('Request and formatted read/write SQL logs verified; sensitive submitted values omitted.');
+ }finally{try{cleanup()}finally{server.kill();}}
+})().catch(e=>{console.error(e);process.exitCode=1});
