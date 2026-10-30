@@ -1,6 +1,6 @@
 'use strict';
 module.exports=({query,write,bad})=>async function flow(req,r){
- const p=req.body||{},[type,idText,action]=req.path.split('/').filter(Boolean),id=Number(idText),uid=r==='manager'?1:2;
+ const p=req.body||{},[type,idText,action]=req.path.split('/').filter(Boolean),id=Number(idText),uid=req.localUid;
  if(!['reservations','reservation-checkouts','sessions'].includes(type))return undefined;
  const cache=new Map();const rows=t=>{if(!cache.has(t))cache.set(t,query(t,'manager'));return cache.get(t)};
  const prefetch=type==='sessions'?(id?(action==='start'?['sessions','bays','vehicles','stations','substations','tariffs','reservations']:['sessions','vehicles','customers','bays','stations','substations']):['vehicles','bays','reservations']):type==='reservations'&&!id?['vehicles','bays','stations','tariffs','reservation-checkouts']:[];await Promise.all(prefetch.map(rows));

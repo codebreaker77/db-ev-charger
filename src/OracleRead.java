@@ -7,7 +7,7 @@ public class OracleRead {
  public static void main(String[] args) throws Exception {
   Properties p=new Properties();try(InputStream in=new FileInputStream("db.properties")){p.load(in);}
   Map<String,String> tables=new HashMap<>();tables.put("stations","charging_station");tables.put("bays","charger_bay");tables.put("substations","substation");tables.put("vehicles","vehicle");tables.put("reservations","reservation");tables.put("reservation-checkouts","reservation_checkout");tables.put("sessions","charging_session");tables.put("invoices","invoice");tables.put("payments","payment");tables.put("tariffs","tariff_plan");tables.put("customers","app_user");tables.put("missions","fleet_mission");tables.put("organizations","fleet_org");tables.put("maintenance","maintenance_log");
-  String type=args[0];boolean manager=args.length>1&&args[1].equals("manager");int uid=manager?1:2;
+  String type=args[0];boolean manager=args.length>1&&args[1].equals("manager");int uid=args.length>2?Integer.parseInt(args[2]):(manager?1:2);if(uid<1)throw new IllegalArgumentException("Invalid user ID");
   String sql;
   if(type.equals("grid-load"))sql="SELECT sub.substation_id, NVL(SUM(s.allocated_kw),0) allocated_load_kw, COUNT(s.session_id) active_sessions, SUM(CASE WHEN s.meter_source='simulated' THEN 1 ELSE 0 END) simulated_sessions FROM substation sub LEFT JOIN charging_station st ON st.substation_id=sub.substation_id LEFT JOIN charger_bay b ON b.station_id=st.station_id LEFT JOIN charging_session s ON s.bay_id=b.bay_id AND s.status='active' GROUP BY sub.substation_id";
   else if(type.equals("me"))sql="SELECT * FROM app_user WHERE user_id="+uid;

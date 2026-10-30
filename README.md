@@ -110,9 +110,9 @@ Go to **http://127.0.0.1:3199/login**. Click **Use real account login** to selec
 | Customer | `customer@local.test` | `LocalExperiment123!` |
 | Manager | `manager@local.test` | `LocalExperiment123!` |
 
-These are fixed test accounts. Browser-demo login uses separate browser-local data. The sample customer has vehicle `LOCAL001`.
+These are fixed test accounts. You can also use **Sign up** after choosing **Use real account login** to create a local customer. The profile is saved in Oracle `APP_USER`; a salted password hash is stored separately in `.local-accounts.json` because the existing schema has no password column. Keep that ignored file private and back it up along with the database: losing it prevents those users from signing in. Signup does not send a verification email. Browser-demo login uses separate browser-local data. The sample customer has vehicle `LOCAL001`.
 
-A customer can create a simulated reservation and request a charging session. A manager can start the session, enter simulated meter readings and complete it to create an invoice. Real charger and payment integrations are not provided. Registration, fleet missions, invoice payments/refunds and invoice PDFs are not implemented in this experiment.
+A customer can create a simulated reservation and request a charging session. A manager can start the session, enter simulated meter readings and complete it to create an invoice. Real charger and payment integrations are not provided. Fleet missions, invoice payments/refunds and invoice PDFs are not implemented in this experiment.
 
 ## Stop and restart
 
